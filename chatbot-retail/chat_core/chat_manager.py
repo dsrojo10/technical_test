@@ -26,6 +26,7 @@ class ChatManager:
     def __init__(self):
         self.registry = UserRegistry()
         self.validator = UserValidator()
+        # Usar el motor QA mejorado
         self.qa_engine = QAEngine()
         
         # Inicializar documentos
@@ -189,15 +190,35 @@ class ChatManager:
             return "❌ Hubo un error en el registro. Por favor contacta al servicio al cliente.", session_state
     
     def _handle_active_chat(self, message: str, session_state: Dict) -> Tuple[str, Dict]:
-        """Maneja el chat activo con preguntas y respuestas"""
+        """Maneja el chat activo con preguntas y respuestas mejoradas"""
         try:
-            # Usar el motor de QA para responder
-            answer, sources = self.qa_engine.ask_question(message)
+            # Preparar contexto del usuario
+            user_context = {}
+            if session_state.get("current_user"):
+                user_context = {
+                    "customer_type": "frecuente" if session_state["current_user"] else "nuevo",
+                    "user_id": session_state["current_user"].get("identificacion") if session_state["current_user"] else None
+                }
+            
+            # Usar el motor de QA mejorado para responder
+            answer, sources, metadata = self.qa_engine.ask_question(message, user_context)
             
             # Agregar información de fuentes si están disponibles
             if sources:
                 source_text = ", ".join(sources)
                 answer += f"\n\n📚 *Información obtenida de: {source_text}*"
+            
+            # Agregar sugerencias contextuales si la calidad de respuesta es baja
+            if metadata.get("quality_score", 0) < 0.6:
+                suggestions = self.qa_engine.get_context_aware_suggestions(message)
+                if suggestions:
+                    answer += f"\n\n💡 **También podrías preguntar:**\n"
+                    for suggestion in suggestions[:2]:  # Máximo 2 sugerencias
+                        answer += f"• {suggestion}\n"
+            
+            # Agregar información de calidad para debugging (solo en desarrollo)
+            if config.DEBUG if hasattr(config, 'DEBUG') else False:
+                answer += f"\n\n🔍 *Score: {metadata.get('quality_score', 0):.2f}, Fuentes: {metadata.get('sources_used', 0)}*"
             
             return answer, session_state
             

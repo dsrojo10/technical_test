@@ -33,6 +33,7 @@ if not OPENAI_API_KEY:
 BOT_NAME = "Asistente Virtual SuperMercado"
 MAX_TOKENS = 1000
 TEMPERATURE = 0.7
+DEBUG = os.getenv("DEBUG", "false").lower() == "true"
 
 # Mensajes del sistema
 WELCOME_MESSAGE = """¡Hola! Soy tu asistente virtual del supermercado. 
