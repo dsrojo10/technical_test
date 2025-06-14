@@ -10,3 +10,5 @@ python-docx
 pydantic
 python-dotenv
 openpyxl
+SpeechRecognition
+audio-recorder-streamlit

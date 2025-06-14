@@ -3,6 +3,10 @@ import logging
 from datetime import datetime
 import os
 from dotenv import load_dotenv
+import speech_recognition as sr
+import io
+import tempfile
+from audio_recorder_streamlit import audio_recorder
 
 # Cargar variables de entorno
 load_dotenv()
@@ -13,6 +17,55 @@ logging.basicConfig(level=logging.INFO)
 # Importar módulos del proyecto
 from chat_core import ChatManager
 import config
+
+def speech_to_text(audio_bytes):
+    """Convierte audio a texto usando speech_recognition"""
+    try:
+        if not audio_bytes or len(audio_bytes) == 0:
+            return "Audio vacío"
+            
+        # Crear un recognizer con configuraciones más robustas
+        r = sr.Recognizer()
+        r.energy_threshold = 300
+        r.dynamic_energy_threshold = True
+        r.pause_threshold = 0.8
+        
+        # Convertir bytes a archivo temporal
+        with tempfile.NamedTemporaryFile(delete=False, suffix=".wav") as tmp_file:
+            tmp_file.write(audio_bytes)
+            tmp_file_path = tmp_file.name
+        
+        try:
+            # Procesar el audio
+            with sr.AudioFile(tmp_file_path) as source:
+                # Ajustar para ruido ambiente
+                r.adjust_for_ambient_noise(source, duration=0.5)
+                audio = r.record(source)
+                
+                # Intentar reconocimiento con Google
+                text = r.recognize_google(audio, language="es-ES")
+                
+                if text:
+                    return text.strip()
+                else:
+                    return "No se detectó texto en el audio"
+                    
+        except sr.UnknownValueError:
+            return "No se pudo entender el audio. Intenta hablar más claro."
+        except sr.RequestError as e:
+            logging.error(f"Error del servicio de reconocimiento: {e}")
+            return "Error de conexión con el servicio de reconocimiento"
+        finally:
+            # Asegurar que el archivo temporal se elimine
+            try:
+                if os.path.exists(tmp_file_path):
+                    os.unlink(tmp_file_path)
+            except:
+                pass
+                
+    except Exception as e:
+        logging.error(f"Error general en speech_to_text: {e}")
+        return f"Error procesando el audio: {str(e)}"
 
 # Configuración de la página
 st.set_page_config(
@@ -88,6 +141,43 @@ def display_chat_messages():
     for message in st.session_state.messages:
         with st.chat_message(message["role"]):
             st.markdown(message["content"])
+
+
+def process_user_message(message_text):
+    """Procesa un mensaje del usuario (texto o audio transcrito)"""
+    if not message_text or message_text.strip() == "":
+        return
+        
+    # Agregar mensaje del usuario
+    st.session_state.messages.append({"role": "user", "content": message_text})
+    
+    # Mostrar mensaje del usuario inmediatamente
+    with st.chat_message("user"):
+        st.markdown(message_text)
+    
+    # Procesar respuesta
+    with st.chat_message("assistant"):
+        with st.spinner("Procesando..."):
+            try:
+                response, updated_session = st.session_state.chat_manager.handle_message(
+                    message_text, 
+                    st.session_state.session_data
+                )
+                
+                # Actualizar estado de sesión
+                st.session_state.session_data = updated_session
+                
+                # Mostrar respuesta
+                st.markdown(response)
+                
+                # Agregar respuesta a mensajes
+                st.session_state.messages.append({"role": "assistant", "content": response})
+                
+            except Exception as e:
+                error_msg = "Lo siento, hubo un error procesando tu mensaje. Por favor intenta de nuevo."
+                st.error(error_msg)
+                st.session_state.messages.append({"role": "assistant", "content": error_msg})
+                logging.error(f"Error en la aplicación: {str(e)}")
 
 
 def display_sidebar_info():
@@ -202,44 +292,82 @@ def main():
     # Mostrar mensajes
     display_chat_messages()
     
-    # Input del usuario
+    # Input del usuario (texto) - principal
     if prompt := st.chat_input("Escribe tu mensaje aquí..."):
-        # Agregar mensaje del usuario
-        st.session_state.messages.append({"role": "user", "content": prompt})
+        process_user_message(prompt)
+    
+    # Separador sutil
+    st.markdown("---")
+    
+    # Micrófono centrado y simple abajo del todo
+    col1, col2, col3 = st.columns([2, 1, 2])
+    
+    with col2:
+        st.markdown("**🎤 Mensaje de voz**")
+        # Audio recorder simple y funcional
+        audio_bytes = audio_recorder(
+            text="🎤 Grabar",
+            recording_color="#e74c3c",
+            neutral_color="#2196F3", 
+            icon_name="microphone",
+            icon_size="1x",
+            key="audio_recorder"
+        )
+    
+    # Procesar audio cuando se reciba
+    if audio_bytes is not None and len(audio_bytes) > 0:
+        # Sistema de hash más permisivo para el primer click
+        if "last_audio_hash" not in st.session_state:
+            st.session_state.last_audio_hash = None
+        if "audio_click_count" not in st.session_state:
+            st.session_state.audio_click_count = 0
+            
+        current_audio_hash = hash(audio_bytes)
         
-        # Mostrar mensaje del usuario inmediatamente
-        with st.chat_message("user"):
-            st.markdown(prompt)
+        # Permitir procesar si es diferente O si es el primer/segundo click
+        should_process = (
+            st.session_state.last_audio_hash != current_audio_hash or 
+            st.session_state.audio_click_count < 2
+        )
         
-        # Procesar respuesta
-        with st.chat_message("assistant"):
-            with st.spinner("Procesando..."):
+        if should_process:
+            st.session_state.last_audio_hash = current_audio_hash
+            st.session_state.audio_click_count += 1
+            
+            if len(audio_bytes) > 1000:  # Verificar que hay suficiente audio
+                # Mostrar feedback temporal
+                with st.container():
+                    st.success("� Transcribiendo audio...")
+                
                 try:
-                    response, updated_session = st.session_state.chat_manager.handle_message(
-                        prompt, 
-                        st.session_state.session_data
-                    )
+                    transcript = speech_to_text(audio_bytes)
                     
-                    # Actualizar estado de sesión
-                    st.session_state.session_data = updated_session
-                    
-                    # Mostrar respuesta
-                    st.markdown(response)
-                    
-                    # Agregar respuesta a mensajes
-                    st.session_state.messages.append({"role": "assistant", "content": response})
-                    
+                    # Validar el resultado
+                    if transcript and len(transcript.strip()) > 0:
+                        if ("Error" not in transcript and 
+                            "No se pudo" not in transcript and 
+                            "Audio vacío" not in transcript and
+                            len(transcript.strip()) > 2):  # Evitar transcripciones muy cortas
+                            
+                            process_user_message(transcript)
+                            # Hacer rerun para que el micrófono vuelva abajo
+                            st.rerun()
+                        else:
+                            st.warning(f"⚠️ {transcript}")
+                    else:
+                        st.warning("⚠️ No se detectó texto en el audio")
+                        
                 except Exception as e:
-                    error_msg = "Lo siento, hubo un error procesando tu mensaje. Por favor intenta de nuevo."
-                    st.error(error_msg)
-                    st.session_state.messages.append({"role": "assistant", "content": error_msg})
-                    logging.error(f"Error en la aplicación: {str(e)}")
+                    st.error(f"❌ Error procesando audio: {str(e)}")
+                    logging.error(f"Error en procesamiento de audio: {e}")
+            else:
+                st.info("ℹ️ Vuelve a clickear sobre el micrófono para grabar un mensaje de voz más largo.")
     
     # Footer
     st.markdown("---")
     st.markdown(
         "<div style='text-align: center; color: #666; font-size: 0.8em;'>"
-        f"© 2025 SuperMercado - Asistente Virtual | Desarrollado con Streamlit y OpenAI"
+        f"© 2025 SuperMercado - Asistente Virtual | Desarrollado con Streamlit y OpenAI | @dsrojo10"
         "</div>", 
         unsafe_allow_html=True
     )
