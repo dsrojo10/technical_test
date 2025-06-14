@@ -82,8 +82,13 @@ class ChatManager:
     
     def _handle_welcome(self, message: str, session_state: Dict) -> Tuple[str, Dict]:
         """Maneja el mensaje de bienvenida inicial"""
-        session_state["conversation_state"] = ConversationState.IDENTIFY_USER_TYPE.value
-        return config.WELCOME_MESSAGE, session_state
+        # Si es el primer mensaje (vacío), solo retornar el mensaje de bienvenida
+        if not message.strip():
+            session_state["conversation_state"] = ConversationState.IDENTIFY_USER_TYPE.value
+            return config.WELCOME_MESSAGE, session_state
+        
+        # Si ya hay un mensaje, procesarlo como identificación de tipo de usuario
+        return self._handle_user_type_identification(message, session_state)
     
     def _handle_user_type_identification(self, message: str, session_state: Dict) -> Tuple[str, Dict]:
         """Identifica si es cliente nuevo o frecuente"""
@@ -192,6 +197,11 @@ class ChatManager:
     def _handle_active_chat(self, message: str, session_state: Dict) -> Tuple[str, Dict]:
         """Maneja el chat activo con preguntas y respuestas mejoradas"""
         try:
+            # Detectar preguntas sobre las capacidades del chatbot
+            message_lower = message.lower().strip()
+            if self._is_bot_capability_question(message_lower):
+                return self._respond_bot_capabilities(session_state)
+            
             # Preparar contexto del usuario
             user_context = {}
             if session_state.get("current_user"):
@@ -247,3 +257,61 @@ class ChatManager:
             "current_user": session_state.get("current_user"),
             "registration_progress": session_state.get("user_data", {})
         }
+    
+    def _is_bot_capability_question(self, message: str) -> bool:
+        """Detecta si la pregunta es sobre las capacidades del chatbot"""
+        capability_keywords = [
+            "en qué me puedes ayudar",
+            "qué puedes hacer",
+            "cómo me ayudas",
+            "cuáles son tus funciones",
+            "qué servicios ofreces",
+            "para qué sirves",
+            "qué información tienes",
+            "en qué me sirves",
+            "cómo funciona este chat",
+            "qué consultas puedo hacer",
+            "dime qué haces",
+            "cuál es tu propósito",
+            "qué tipo de ayuda das",
+            "qué preguntas puedo hacerte"
+        ]
+        
+        return any(keyword in message for keyword in capability_keywords)
+    
+    def _respond_bot_capabilities(self, session_state: Dict) -> Tuple[str, Dict]:
+        """Responde con las capacidades del chatbot"""
+        user_name = ""
+        if session_state.get("current_user"):
+            user_name = f" {session_state['current_user']['nombre_completo']}"
+        
+        response = f"""¡Hola{user_name}! 🤖 Soy tu asistente virtual del supermercado y puedo ayudarte proporcionando información sobre:
+
+🕒 **Horarios de Atención**
+• Horarios de todas nuestras sucursales
+• Días y horas específicas de operación
+• Información sobre horarios especiales
+
+🎁 **Promociones y Ofertas**
+• Programa "Suma y Gana" 
+• Descuentos y promociones vigentes
+• Cómo acumular y redimir puntos
+
+❓ **Preguntas Frecuentes**
+• Métodos de pago
+• Políticas de la tienda
+• Procedimientos y servicios
+• Información general del supermercado
+
+**¿Cómo funciono?**
+Busco en nuestra base de información oficial para darte respuestas precisas y actualizadas. Simplemente pregúntame lo que necesites saber sobre cualquiera de estos temas.
+
+**Ejemplos de preguntas que puedes hacerme:**
+• "¿Cuáles son los horarios de la sucursal Centro?"
+• "¿Cómo funciona el programa Suma y Gana?"
+• "¿Qué promociones tienen disponibles?"
+• "¿Qué métodos de pago aceptan?"
+
+¿En qué te gustaría que te ayude hoy? 😊"""
+
+        return response, session_state

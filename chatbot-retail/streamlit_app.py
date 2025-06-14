@@ -190,10 +190,14 @@ def main():
     # Sidebar
     display_sidebar_info()
     
-    # Mensaje de bienvenida inicial
-    if not st.session_state.messages:
-        welcome_msg = config.WELCOME_MESSAGE
-        st.session_state.messages.append({"role": "assistant", "content": welcome_msg})
+    # Mensaje de bienvenida inicial - solo si no hay mensajes Y no hay estado de conversación
+    if not st.session_state.messages and not st.session_state.session_data:
+        # Procesar el mensaje de bienvenida a través del chat manager
+        welcome_response, initial_session = st.session_state.chat_manager.handle_message(
+            "", st.session_state.session_data
+        )
+        st.session_state.session_data = initial_session
+        st.session_state.messages.append({"role": "assistant", "content": welcome_response})
     
     # Mostrar mensajes
     display_chat_messages()
