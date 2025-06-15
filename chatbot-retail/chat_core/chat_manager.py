@@ -334,8 +334,13 @@ Busco en nuestra base de información oficial para darte respuestas precisas y a
         """Registra la interacción para análisis estadístico"""
         try:
             usuario_id = None
-            if session_state.get("current_user"):
-                usuario_id = session_state["current_user"].get("id")
+            current_user = session_state.get("current_user")
+            
+            if current_user:
+                usuario_id = current_user.get("id")
+                logging.info(f"Usuario encontrado: {current_user.get('nombre_completo', 'Sin nombre')} (ID: {usuario_id})")
+            else:
+                logging.info("No hay usuario logueado - registrando como anónimo")
             
             session_id = session_state.get("session_id", "unknown")
             
@@ -350,6 +355,9 @@ Busco en nuestra base de información oficial para darte respuestas precisas y a
                 respuesta_bot=respuesta_bot,
                 tipo_consulta=tipo_consulta
             )
+            
+            logging.info(f"Conversación registrada - Usuario ID: {usuario_id}, Sesión: {session_id}")
+            
         except Exception as e:
             logging.error(f"Error registrando interacción: {e}")
     

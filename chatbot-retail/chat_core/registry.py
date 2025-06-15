@@ -164,7 +164,7 @@ class UserRegistry:
             conn.row_factory = sqlite3.Row  # Para obtener diccionarios
             cursor = conn.cursor()
             cursor.execute("""
-                SELECT identificacion, nombre_completo, telefono, email, fecha_registro
+                SELECT id, identificacion, nombre_completo, telefono, email, fecha_registro
                 FROM usuarios 
                 WHERE identificacion = ? AND activo = 1
             """, (identificacion,))

@@ -2,14 +2,10 @@ import streamlit as st
 import logging
 from datetime import datetime
 import os
-from dotenv import load_dotenv
 import speech_recognition as sr
 import io
 import tempfile
 from audio_recorder_streamlit import audio_recorder
-
-# Cargar variables de entorno
-load_dotenv()
 
 # Configurar logging
 logging.basicConfig(level=logging.INFO)
@@ -156,6 +152,9 @@ def process_user_message(message_text):
     with st.chat_message("user"):
         st.markdown(message_text)
     
+    # Sincronizar información del usuario en session_data
+    _sync_user_data()
+    
     # Procesar respuesta
     with st.chat_message("assistant"):
         with st.spinner("Procesando..."):
@@ -179,6 +178,20 @@ def process_user_message(message_text):
                 st.error(error_msg)
                 st.session_state.messages.append({"role": "assistant", "content": error_msg})
                 logging.error(f"Error en la aplicación: {str(e)}")
+
+
+def _sync_user_data():
+    """Sincroniza la información del usuario del sistema de chat con session_data"""
+    # Obtener el estado actual de la conversación para obtener current_user
+    status = st.session_state.chat_manager.get_conversation_status(st.session_state.session_data)
+    
+    # Si hay un usuario autenticado, asegurarse de que esté en session_data
+    if status.get("user_authenticated") and status.get("current_user"):
+        st.session_state.session_data["current_user"] = status["current_user"]
+        logging.info(f"Usuario sincronizado: {status['current_user'].get('nombre_completo', 'Sin nombre')}")
+    elif "current_user" not in st.session_state.session_data:
+        st.session_state.session_data["current_user"] = None
+        logging.info("No hay usuario autenticado - estableciendo como None")
 
 
 def display_sidebar_info():

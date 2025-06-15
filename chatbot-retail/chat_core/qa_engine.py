@@ -238,7 +238,7 @@ RESPUESTA:"""
             enriched_question = self._add_conversation_context(question)
             
             # Hacer la consulta
-            result = self.qa_chain({"query": enriched_question})
+            result = self.qa_chain.invoke({"query": enriched_question})
             
             # Extraer respuesta
             answer = result["result"]

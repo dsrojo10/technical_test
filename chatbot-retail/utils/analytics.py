@@ -133,6 +133,8 @@ class AnalyticsManager:
             
             avg_result = pd.read_sql_query(query_avg, conn)
             avg_messages = avg_result['promedio_mensajes'].iloc[0] if not avg_result.empty else 0
+            # Asegurar que avg_messages no sea None
+            avg_messages = avg_messages if avg_messages is not None else 0
             
             return df_registration, avg_messages
     
@@ -141,17 +143,12 @@ class AnalyticsManager:
         st.markdown("# 📊 Analytics Dashboard")
         st.markdown("---")
         
-        # Sidebar para filtros
+        # Período fijo de análisis (30 días)
+        days_filter = 30
+        
+        # Sidebar para información
         with st.sidebar:
-            st.markdown("### 🔧 Filtros")
-            days_filter = st.selectbox(
-                "Período de análisis",
-                [7, 15, 30, 60, 90],
-                index=2,
-                help="Selecciona el número de días para el análisis"
-            )
-            
-            st.markdown("### 📈 Métricas Generales")
+            st.markdown("### 📈 Métricas Generales (Últimos 30 días)")
             
             # Métricas rápidas
             with sqlite3.connect(self.db_path) as conn:
@@ -175,7 +172,7 @@ class AnalyticsManager:
             st.metric("Promedio Diario", f"{avg_daily:.1f}")
         
         # Tabs principales
-        tab1, tab2, tab3, tab4 = st.tabs(["📈 Tendencias", "💬 Conversaciones", "👥 Usuarios", "🔍 Palabras Clave"])
+        tab1, tab2, tab3, tab4, tab5 = st.tabs(["📈 Tendencias", "💬 Conversaciones", "👥 Usuarios", "🔍 Palabras Clave", "🔧 Debug"])
         
         with tab1:
             self._render_trends_tab(days_filter)
@@ -188,6 +185,9 @@ class AnalyticsManager:
         
         with tab4:
             self._render_words_tab(days_filter)
+            
+        with tab5:
+            self.show_debug_info()
     
     def _render_trends_tab(self, days):
         """Renderiza la pestaña de tendencias"""
@@ -375,3 +375,73 @@ class AnalyticsManager:
                 
                 if not services_found.empty:
                     st.write("🛠️ **Consultas sobre servicios detectadas**")
+    
+    def show_debug_info(self):
+        """Muestra información de debug sobre el estado de la base de datos"""
+        st.subheader("🔍 Información de Debug")
+        
+        with sqlite3.connect(self.db_path) as conn:
+            cursor = conn.cursor()
+            
+            # Total de usuarios
+            cursor.execute("SELECT COUNT(*) FROM usuarios")
+            total_usuarios = cursor.fetchone()[0]
+            
+            # Total de conversaciones
+            cursor.execute("SELECT COUNT(*) FROM conversaciones")
+            total_conversaciones = cursor.fetchone()[0]
+            
+            # Conversaciones con usuario vs anónimas
+            cursor.execute("""
+                SELECT 
+                    CASE WHEN usuario_id IS NULL THEN 'Anónimo' ELSE 'Registrado' END as tipo,
+                    COUNT(*) as total
+                FROM conversaciones 
+                GROUP BY tipo
+            """)
+            conv_por_tipo = dict(cursor.fetchall())
+            
+            # Últimas conversaciones
+            cursor.execute("""
+                SELECT c.mensaje_usuario, c.timestamp, u.nombre_completo, c.usuario_id
+                FROM conversaciones c
+                LEFT JOIN usuarios u ON c.usuario_id = u.id
+                ORDER BY c.timestamp DESC
+                LIMIT 10
+            """)
+            ultimas_conversaciones = cursor.fetchall()
+            
+        col1, col2, col3 = st.columns(3)
+        
+        with col1:
+            st.metric("👥 Total Usuarios", total_usuarios)
+        
+        with col2:
+            st.metric("💬 Total Conversaciones", total_conversaciones)
+            
+        with col3:
+            anon = conv_por_tipo.get('Anónimo', 0)
+            reg = conv_por_tipo.get('Registrado', 0)
+            st.metric("📊 Registrados vs Anónimos", f"{reg}/{anon}")
+        
+        if ultimas_conversaciones:
+            st.subheader("📝 Últimas 10 Conversaciones")
+            conv_data = []
+            for conv in ultimas_conversaciones:
+                mensaje, timestamp, nombre, user_id = conv
+                usuario = nombre if nombre else f"Anónimo (ID:{user_id})" if user_id else "Anónimo"
+                conv_data.append({
+                    "Timestamp": timestamp,
+                    "Usuario": usuario,
+                    "Mensaje": mensaje[:100] + "..." if len(mensaje) > 100 else mensaje
+                })
+            
+            st.dataframe(pd.DataFrame(conv_data), use_container_width=True)
+        else:
+            st.info("No hay conversaciones registradas aún.")
+            st.markdown("""
+            **💡 Sugerencia:** Prueba hacer algunas preguntas al chatbot para ver cómo se registran las conversaciones:
+            - Haz una pregunta como usuario anónimo
+            - Regístrate como usuario y haz otra pregunta
+            - Revisa aquí para ver cómo se almacenan los datos
+            """)
