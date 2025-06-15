@@ -43,21 +43,20 @@ class QAEngine:
     def _initialize_components(self):
         """Inicializa los componentes de OpenAI de forma segura"""
         try:
-            if not config.OPENAI_API_KEY:
-                raise ValueError("OPENAI_API_KEY no configurada")
+            openai_config = config.get_openai_config()
             
             # Inicializar embeddings
             self.embeddings = OpenAIEmbeddings(
-                model=config.EMBEDDING_MODEL,
-                openai_api_key=config.OPENAI_API_KEY
+                model=openai_config["embedding_model"],
+                openai_api_key=openai_config["api_key"]
             )
             
             # Inicializar LLM con configuración mejorada
             self.llm = ChatOpenAI(
-                model=config.OPENAI_MODEL,
+                model=openai_config["model"],
                 temperature=0.2,  # Más preciso
                 max_tokens=1200,  # Respuestas más completas
-                openai_api_key=config.OPENAI_API_KEY
+                openai_api_key=openai_config["api_key"]
             )
             
             # Cargar vectorstore si existe

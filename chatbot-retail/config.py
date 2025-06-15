@@ -1,9 +1,19 @@
 import os
 from pathlib import Path
-from dotenv import load_dotenv
+import streamlit as st
 
-# Cargar variables de entorno
-load_dotenv()
+def get_secrets():
+    """Obtener secrets de Streamlit de forma segura"""
+    try:
+        return st.secrets
+    except Exception:
+        # Fallback si no estamos en contexto de Streamlit
+        return {}
+
+def get_config_value(key, default=None):
+    """Obtener valor de configuración desde secrets"""
+    secrets = get_secrets()
+    return secrets.get(key, default)
 
 # Configuración de rutas
 BASE_DIR = Path(__file__).parent
@@ -19,21 +29,29 @@ PREGUNTAS_FILE = DOCUMENTS_DIR / "Preguntas_Frecuentes.docx"
 # Base de datos
 DATABASE_PATH = DATA_DIR / "users.db"
 
-# Configuración de OpenAI
-OPENAI_API_KEY = os.getenv("OPENAI_API_KEY")
-OPENAI_ORG_ID = os.getenv("OPENAI_ORG_ID")  # Opcional
-OPENAI_MODEL = os.getenv("CHAT_MODEL", "gpt-3.5-turbo")
-EMBEDDING_MODEL = os.getenv("EMBEDDINGS_MODEL", "text-embedding-3-small")
+# Configuración de OpenAI (se carga dinámicamente)
+def get_openai_config():
+    """Obtener configuración de OpenAI"""
+    api_key = get_config_value("OPENAI_API_KEY")
+    if not api_key:
+        raise ValueError("OPENAI_API_KEY no está configurada. Por favor, configúrala en Streamlit Secrets o en .streamlit/secrets.toml")
+    
+    return {
+        "api_key": api_key,
+        "org_id": get_config_value("OPENAI_ORG_ID"),
+        "model": get_config_value("CHAT_MODEL", "gpt-3.5-turbo"),
+        "embedding_model": get_config_value("EMBEDDINGS_MODEL", "text-embedding-3-small")
+    }
 
-# Validar que la API key esté configurada
-if not OPENAI_API_KEY:
-    raise ValueError("OPENAI_API_KEY no está configurada. Por favor, configúrala en el archivo .env")
+# Variables que se pueden importar directamente (sin secrets)
+OPENAI_MODEL = get_config_value("CHAT_MODEL", "gpt-3.5-turbo")
+EMBEDDING_MODEL = get_config_value("EMBEDDINGS_MODEL", "text-embedding-3-small")
 
 # Configuración del chatbot
 BOT_NAME = "Asistente Virtual SuperMercado"
 MAX_TOKENS = 1000
 TEMPERATURE = 0.7
-DEBUG = os.getenv("DEBUG", "false").lower() == "true"
+DEBUG = str(get_config_value("DEBUG", "false")).lower() == "true"
 
 # Mensajes del sistema
 WELCOME_MESSAGE = """¡Hola! Soy tu asistente virtual del supermercado. 

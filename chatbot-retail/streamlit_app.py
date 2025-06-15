@@ -261,8 +261,10 @@ def main():
     """Función principal de la aplicación"""
     
     # Verificar configuración
-    if not config.OPENAI_API_KEY:
-        st.error("⚠️ **Configuración requerida:** Por favor configura tu API key de OpenAI en las variables de entorno o en .streamlit/secrets.toml")
+    try:
+        config.get_openai_config()
+    except ValueError as e:
+        st.error(f"⚠️ **Configuración requerida:** {str(e)}")
         st.info("Agrega tu API key en `.streamlit/secrets.toml`: \n```\nOPENAI_API_KEY = \"tu-api-key-aqui\"\n```")
         st.stop()
     
