@@ -13,6 +13,35 @@ Chatbot inteligente para atención al cliente de un supermercado que utiliza pro
 - ✅ **Interfaz conversacional** con Streamlit
 - ✅ **Base de datos SQLite** para persistencia
 - ✅ **Procesamiento de documentos** (Excel, PDF, Word)
+- ✅ **Reconocimiento de voz** para mensajes por audio
+- ✅ **Dashboard de Analytics** con estadísticas y métricas de uso
+- ✅ **Análisis de palabras clave** y patrones de conversación
+- ✅ **Seguimiento de usuarios activos** y métricas de engagement
+
+## 📊 Funcionalidad de Analytics
+
+El sistema incluye un dashboard completo de analytics accessible desde la interfaz principal:
+
+### Características del Dashboard:
+- **Acceso protegido**: Contraseña de administrador requerida
+- **Tendencias de uso**: Gráficos de conversaciones por día y hora
+- **Análisis de tipos de consulta**: Distribución de categorías de preguntas
+- **Usuarios más activos**: Ranking de usuarios por engagement
+- **Análisis de palabras clave**: Términos más frecuentes en conversaciones
+- **Métricas de tiempo real**: Estadísticas actualizadas automáticamente
+
+### Cómo acceder:
+1. En la barra lateral, introduce la contraseña de administrador
+2. Haz clic en "📊 Ver Analytics"
+3. Explora las diferentes pestañas del dashboard
+
+### Métricas disponibles:
+- Total de conversaciones por período
+- Usuarios únicos activos
+- Distribución horaria de uso
+- Palabras clave más frecuentes
+- Tipos de consulta más comunes
+- Engagement de usuarios registrados vs anónimos
 
 ## Estructura del Proyecto
 

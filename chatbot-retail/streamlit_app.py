@@ -16,6 +16,7 @@ logging.basicConfig(level=logging.INFO)
 
 # Importar módulos del proyecto
 from chat_core import ChatManager
+from utils.analytics import AnalyticsManager
 import config
 
 def speech_to_text(audio_bytes):
@@ -185,38 +186,60 @@ def display_sidebar_info():
     with st.sidebar:
         st.title("ℹ️ Información")
         
-        # Estado de la conversación
-        if hasattr(st.session_state, 'chat_manager'):
-            status = st.session_state.chat_manager.get_conversation_status(st.session_state.session_data)
+        # Agregar opción de Analytics (oculta inicialmente)
+        analytics_password = st.text_input(
+            "🔒 Acceso Analytics", 
+            type="password", 
+            placeholder="Contraseña de administrador",
+            help="Ingresa la contraseña para acceder a las estadísticas"
+        )
+        
+        if analytics_password == "admin123":  # Puedes cambiar esta contraseña
+            if st.button("📊 Ver Analytics", type="primary"):
+                st.session_state.show_analytics = True
+                st.rerun()
+        
+        # Botón para volver al chat si estamos en analytics
+        if st.session_state.get('show_analytics', False):
+            if st.button("🔙 Volver al Chat"):
+                st.session_state.show_analytics = False
+                st.rerun()
             
-            st.subheader("Estado actual")
-            state_display = {
-                "welcome": "🏠 Bienvenida",
-                "identify_user_type": "👤 Identificando tipo de usuario",
-                "existing_user_id": "🔍 Validando usuario existente",
-                "new_user_id": "📝 Registro - Identificación",
-                "new_user_name": "📝 Registro - Nombre",
-                "new_user_phone": "📝 Registro - Teléfono",
-                "new_user_email": "📝 Registro - Email",
-                "chat_active": "💬 Chat activo"
-            }
-            
-            current_state = status.get("state", "welcome")
-            st.info(state_display.get(current_state, current_state))
-            
-            # Usuario actual
-            if status.get("user_authenticated"):
-                user = status.get("current_user")
-                if user:
-                    st.subheader("Usuario actual")
-                    st.success(f"👋 {user['nombre_completo']}")
-                    with st.expander("Ver detalles"):
-                        st.write(f"**ID:** {user['identificacion']}")
-                        st.write(f"**Teléfono:** {user['telefono']}")
-                        st.write(f"**Email:** {user['email']}")
-            
-            # Progreso de registro
-            registration = status.get("registration_progress", {})
+            st.markdown("---")
+        
+        # Estado de la conversación (solo si no estamos en analytics)
+        if not st.session_state.get('show_analytics', False):
+            if hasattr(st.session_state, 'chat_manager'):
+                status = st.session_state.chat_manager.get_conversation_status(st.session_state.session_data)
+                
+                st.subheader("Estado actual")
+                state_display = {
+                    "welcome": "🏠 Bienvenida",
+                    "identify_user_type": "👤 Identificando tipo de usuario",
+                    "existing_user_id": "🔍 Validando usuario existente",
+                    "new_user_id": "📝 Registro - Identificación",
+                    "new_user_name": "📝 Registro - Nombre",
+                    "new_user_phone": "📝 Registro - Teléfono",
+                    "new_user_email": "📝 Registro - Email",
+                    "chat_active": "💬 Chat activo"
+                }
+                
+                current_state = status.get("state", "welcome")
+                st.info(state_display.get(current_state, current_state))
+                
+                # Usuario actual
+                if status.get("user_authenticated"):
+                    user = status.get("current_user")
+                    if user:
+                        st.subheader("Usuario actual")
+                        st.success(f"👋 {user['nombre_completo']}")
+                        with st.expander("Ver detalles"):
+                            st.write(f"**ID:** {user['identificacion']}")
+                            st.write(f"**Teléfono:** {user['telefono']}")
+                            st.write(f"**Email:** {user['email']}")
+                
+                # Progreso de registro
+                registration = status.get("registration_progress", {})
             if registration:
                 st.subheader("Progreso de registro")
                 progress_items = {
@@ -271,6 +294,17 @@ def main():
     # Inicializar estado
     initialize_session_state()
     
+    # Sidebar
+    display_sidebar_info()
+    
+    # Verificar si mostrar analytics
+    if st.session_state.get('show_analytics', False):
+        # Mostrar dashboard de analytics
+        analytics_manager = AnalyticsManager()
+        analytics_manager.render_analytics_dashboard()
+        return
+    
+    # Interface normal del chatbot
     # Header
     st.markdown("""
     <div class="header">
@@ -278,9 +312,6 @@ def main():
         <p>Tu asistente personal para consultas y atención al cliente</p>
     </div>
     """, unsafe_allow_html=True)
-    
-    # Sidebar
-    display_sidebar_info()
     
     # Mensaje de bienvenida inicial - solo si no hay mensajes Y no hay estado de conversación
     if not st.session_state.messages and not st.session_state.session_data:

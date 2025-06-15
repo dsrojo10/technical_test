@@ -1,6 +1,7 @@
 from enum import Enum
 from typing import Optional, Dict, Any, Tuple
 import logging
+from datetime import datetime
 
 from .registry import UserRegistry
 from .validators import UserValidator
@@ -48,9 +49,22 @@ class ChatManager:
             session_state["conversation_state"] = ConversationState.WELCOME.value
             session_state["user_data"] = {}
             session_state["current_user"] = None
+            session_state["session_id"] = session_state.get("session_id", f"session_{int(datetime.now().timestamp())}")
         
         current_state = session_state["conversation_state"]
         message_lower = message.lower().strip()
+        
+        # Procesar el mensaje y obtener respuesta
+        response, new_session_state = self._process_message(message_lower, message, session_state)
+        
+        # Registrar la conversación para analytics
+        self._registrar_interaccion(message, response, new_session_state)
+        
+        return response, new_session_state
+    
+    def _process_message(self, message_lower: str, original_message: str, session_state: Dict[str, Any]) -> Tuple[str, Dict[str, Any]]:
+        """Procesa el mensaje según el estado actual"""
+        current_state = session_state["conversation_state"]
         
         # Manejar estados de conversación
         if current_state == ConversationState.WELCOME.value:
@@ -60,22 +74,22 @@ class ChatManager:
             return self._handle_user_type_identification(message_lower, session_state)
             
         elif current_state == ConversationState.EXISTING_USER_ID.value:
-            return self._handle_existing_user_id(message, session_state)
+            return self._handle_existing_user_id(original_message, session_state)
             
         elif current_state == ConversationState.NEW_USER_ID.value:
-            return self._handle_new_user_id(message, session_state)
+            return self._handle_new_user_id(original_message, session_state)
             
         elif current_state == ConversationState.NEW_USER_NAME.value:
-            return self._handle_new_user_name(message, session_state)
+            return self._handle_new_user_name(original_message, session_state)
             
         elif current_state == ConversationState.NEW_USER_PHONE.value:
-            return self._handle_new_user_phone(message, session_state)
+            return self._handle_new_user_phone(original_message, session_state)
             
         elif current_state == ConversationState.NEW_USER_EMAIL.value:
-            return self._handle_new_user_email(message, session_state)
+            return self._handle_new_user_email(original_message, session_state)
             
         elif current_state == ConversationState.CHAT_ACTIVE.value:
-            return self._handle_active_chat(message, session_state)
+            return self._handle_active_chat(original_message, session_state)
         
         # Estado desconocido - reiniciar
         return self._reset_conversation(session_state)
@@ -315,3 +329,43 @@ Busco en nuestra base de información oficial para darte respuestas precisas y a
 ¿En qué te gustaría que te ayude hoy? 😊"""
 
         return response, session_state
+    
+    def _registrar_interaccion(self, mensaje_usuario: str, respuesta_bot: str, session_state: Dict[str, Any]):
+        """Registra la interacción para análisis estadístico"""
+        try:
+            usuario_id = None
+            if session_state.get("current_user"):
+                usuario_id = session_state["current_user"].get("id")
+            
+            session_id = session_state.get("session_id", "unknown")
+            
+            # Determinar tipo de consulta basado en el contenido
+            tipo_consulta = self._clasificar_consulta(mensaje_usuario)
+            
+            # Registrar en la base de datos
+            self.registry.registrar_conversacion(
+                usuario_id=usuario_id,
+                session_id=session_id,
+                mensaje_usuario=mensaje_usuario,
+                respuesta_bot=respuesta_bot,
+                tipo_consulta=tipo_consulta
+            )
+        except Exception as e:
+            logging.error(f"Error registrando interacción: {e}")
+    
+    def _clasificar_consulta(self, mensaje: str) -> str:
+        """Clasifica el tipo de consulta basado en palabras clave"""
+        mensaje_lower = mensaje.lower()
+        
+        # Palabras clave para horarios
+        horarios_keywords = ['horario', 'hora', 'abierto', 'cerrado', 'atiende', 'funciona']
+        if any(keyword in mensaje_lower for keyword in horarios_keywords):
+            return 'horarios'
+        
+        # Palabras clave para promociones
+        promo_keywords = ['promocion', 'oferta', 'descuento', 'suma', 'gana', 'ahorro']
+        if any(keyword in mensaje_lower for keyword in promo_keywords):
+            return 'promociones'
+        
+        # Por defecto, consulta general
+        return 'generales'

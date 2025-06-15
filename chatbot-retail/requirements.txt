@@ -11,3 +11,4 @@ pydantic
 openpyxl
 SpeechRecognition
 audio-recorder-streamlit
+plotly
